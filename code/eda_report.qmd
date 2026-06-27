@@ -1,0 +1,294 @@
+---
+title: "Gapminder 탐색적 데이터 분석 (EDA) 보고서"
+author: "세종대학교"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-title: "목차"
+    number-sections: true
+    theme: cosmo
+    code-fold: true
+    code-summary: "코드 보기"
+    fig-width: 9
+    fig-height: 5
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+jupyter: python3
+---
+
+## 개요
+
+본 보고서는 Hans Rosling의 Gapminder 데이터셋에 대한 탐색적 데이터 분석(EDA) 결과를 담고 있습니다.
+분석 대상은 1952년부터 2007년까지 5년 간격으로 수집된 **142개국**의 기대수명, 인구, 1인당 GDP 데이터입니다.
+
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore")
+
+plt.rcParams["figure.dpi"] = 120
+plt.rcParams["axes.spines.top"] = False
+plt.rcParams["axes.spines.right"] = False
+
+df = pd.read_csv("../data/gapminder_clean.csv")
+print(f"데이터 크기: {df.shape[0]}행 × {df.shape[1]}열")
+df.head()
+```
+
+---
+
+## 데이터 기본 정보
+
+### 구조 및 타입
+
+```{python}
+df.dtypes.to_frame("타입").T
+```
+
+### 기초 통계량
+
+수치형 컬럼(기대수명, 인구, 1인당 GDP)의 기초 통계량입니다.
+인구와 GDP의 표준편차가 평균 대비 매우 크며, 이는 국가 간 격차가 상당함을 의미합니다.
+
+```{python}
+df[["lifeexp", "pop", "gdppercap"]].describe().round(2)
+```
+
+### 결측치 확인
+
+```{python}
+missing = df.isnull().sum().to_frame("결측치 수")
+missing["비율(%)"] = (missing["결측치 수"] / len(df) * 100).round(2)
+missing
+```
+
+> 결측치가 전혀 없는 완전한 데이터셋입니다.
+
+---
+
+## 변수 분포 분석
+
+### 기대수명 분포
+
+전체 기대수명의 분포는 약한 이봉(bimodal) 형태를 보입니다.
+이는 선진국(고기대수명 그룹)과 개발도상국(저기대수명 그룹)이 혼재하기 때문입니다.
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+axes[0].hist(df["lifeexp"], bins=30, color="#4C72B0", edgecolor="white")
+axes[0].set_xlabel("기대수명 (세)")
+axes[0].set_ylabel("빈도")
+axes[0].set_title("기대수명 히스토그램")
+
+sns.boxplot(data=df, x="continent", y="lifeexp", ax=axes[1], palette="Set2")
+axes[1].set_xlabel("대륙")
+axes[1].set_ylabel("기대수명 (세)")
+axes[1].set_title("대륙별 기대수명 분포")
+
+plt.tight_layout()
+plt.show()
+```
+
+### 1인당 GDP 분포
+
+1인당 GDP는 강한 우측 꼬리(right-skewed) 분포를 가집니다.
+로그 변환 시 정규분포에 가까워지며, 이후 분석에서 로그 스케일 사용을 권장합니다.
+
+```{python}
+import numpy as np
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+axes[0].hist(df["gdppercap"], bins=40, color="#DD8452", edgecolor="white")
+axes[0].set_xlabel("1인당 GDP (달러)")
+axes[0].set_ylabel("빈도")
+axes[0].set_title("1인당 GDP 히스토그램 (원본)")
+
+axes[1].hist(np.log10(df["gdppercap"]), bins=40, color="#55A868", edgecolor="white")
+axes[1].set_xlabel("log₁₀(1인당 GDP)")
+axes[1].set_ylabel("빈도")
+axes[1].set_title("1인당 GDP 히스토그램 (로그 변환)")
+
+plt.tight_layout()
+plt.show()
+```
+
+### 인구 분포
+
+인구 역시 극단적인 우편향 분포를 보입니다.
+중국과 인도가 상위를 차지하며 전체 평균을 크게 끌어올립니다.
+
+```{python}
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.hist(np.log10(df["pop"]), bins=40, color="#C44E52", edgecolor="white")
+ax.set_xlabel("log₁₀(인구)")
+ax.set_ylabel("빈도")
+ax.set_title("인구 분포 (로그 변환)")
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## 대륙별 비교 분석
+
+### 대륙별 국가 수
+
+```{python}
+continent_counts = df.groupby("continent")["country"].nunique().sort_values(ascending=False)
+
+fig, ax = plt.subplots(figsize=(8, 4))
+bars = ax.bar(continent_counts.index, continent_counts.values, color=sns.color_palette("Set2", 5))
+ax.bar_label(bars, padding=3)
+ax.set_xlabel("대륙")
+ax.set_ylabel("국가 수")
+ax.set_title("대륙별 국가 수")
+plt.tight_layout()
+plt.show()
+```
+
+### 대륙별 평균 지표 (2007년 기준)
+
+2007년 기준 최신 스냅샷으로 대륙 간 격차를 비교합니다.
+Europe과 Oceania는 높은 기대수명과 GDP를 보이며, Africa는 두 지표 모두 가장 낮은 수준입니다.
+
+```{python}
+df_2007 = df[df["year"] == 2007]
+summary = df_2007.groupby("continent")[["lifeexp", "gdppercap", "pop"]].mean().round(2)
+summary.columns = ["평균 기대수명", "평균 1인당 GDP", "평균 인구"]
+summary.sort_values("평균 기대수명", ascending=False)
+```
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+palette = sns.color_palette("Set2", 5)
+
+order = summary.sort_values("평균 기대수명", ascending=False).index
+sns.barplot(data=df_2007, x="continent", y="lifeexp", order=order,
+            palette=palette, ax=axes[0], errorbar="sd")
+axes[0].set_title("2007년 대륙별 평균 기대수명")
+axes[0].set_xlabel("")
+axes[0].set_ylabel("기대수명 (세)")
+
+order2 = summary.sort_values("평균 1인당 GDP", ascending=False).index
+sns.barplot(data=df_2007, x="continent", y="gdppercap", order=order2,
+            palette=palette, ax=axes[1], errorbar="sd")
+axes[1].set_title("2007년 대륙별 평균 1인당 GDP")
+axes[1].set_xlabel("")
+axes[1].set_ylabel("1인당 GDP (달러)")
+
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## 시계열 추세 분석
+
+### 기대수명 변화 추이
+
+모든 대륙에서 기대수명이 꾸준히 증가하는 추세를 보입니다.
+Africa는 1990년대 초반 HIV/AIDS 확산의 영향으로 증가세가 둔화되었으며, 이후 회복세를 보입니다.
+
+```{python}
+trend = df.groupby(["year", "continent"])["lifeexp"].mean().reset_index()
+
+fig, ax = plt.subplots(figsize=(10, 5))
+for continent, group in trend.groupby("continent"):
+    ax.plot(group["year"], group["lifeexp"], marker="o", markersize=4, label=continent)
+
+ax.set_xlabel("연도")
+ax.set_ylabel("평균 기대수명 (세)")
+ax.set_title("대륙별 평균 기대수명 변화 (1952~2007)")
+ax.legend(title="대륙")
+ax.set_xticks(df["year"].unique())
+plt.tight_layout()
+plt.show()
+```
+
+### 1인당 GDP 변화 추이
+
+Europe과 Oceania는 안정적인 성장세를 보이며, Asia는 1990년대 이후 급격한 경제 성장을 보입니다.
+Africa는 전 기간에 걸쳐 낮은 GDP 수준이 유지되고 있습니다.
+
+```{python}
+trend_gdp = df.groupby(["year", "continent"])["gdppercap"].mean().reset_index()
+
+fig, ax = plt.subplots(figsize=(10, 5))
+for continent, group in trend_gdp.groupby("continent"):
+    ax.plot(group["year"], group["gdppercap"], marker="o", markersize=4, label=continent)
+
+ax.set_xlabel("연도")
+ax.set_ylabel("평균 1인당 GDP (달러)")
+ax.set_title("대륙별 평균 1인당 GDP 변화 (1952~2007)")
+ax.legend(title="대륙")
+ax.set_xticks(df["year"].unique())
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## 변수 간 관계 분석
+
+### 기대수명 vs 1인당 GDP
+
+1인당 GDP와 기대수명은 **양의 상관관계**를 보이며, 로그 스케일에서 선형에 가까운 관계가 나타납니다.
+단, GDP가 일정 수준 이상이 되면 기대수명 증가폭이 줄어드는 수확 체감 패턴이 관찰됩니다.
+
+```{python}
+df_2007 = df[df["year"] == 2007].copy()
+
+fig, ax = plt.subplots(figsize=(10, 6))
+for continent, group in df_2007.groupby("continent"):
+    ax.scatter(group["gdppercap"], group["lifeexp"],
+               s=group["pop"] / 1e6, alpha=0.7, label=continent)
+
+ax.set_xscale("log")
+ax.set_xlabel("1인당 GDP (달러, 로그 스케일)")
+ax.set_ylabel("기대수명 (세)")
+ax.set_title("1인당 GDP vs 기대수명 (2007년, 원 크기 = 인구)")
+ax.legend(title="대륙")
+plt.tight_layout()
+plt.show()
+```
+
+### 상관관계 히트맵
+
+```{python}
+corr = df[["lifeexp", "pop", "gdppercap", "year"]].corr().round(2)
+
+fig, ax = plt.subplots(figsize=(6, 5))
+sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm",
+            center=0, square=True, ax=ax,
+            xticklabels=["기대수명", "인구", "1인당 GDP", "연도"],
+            yticklabels=["기대수명", "인구", "1인당 GDP", "연도"])
+ax.set_title("수치형 변수 상관관계")
+plt.tight_layout()
+plt.show()
+```
+
+> - `year`와 `lifeexp`의 상관계수가 높아 시간이 갈수록 기대수명이 증가함을 확인할 수 있습니다.
+> - `pop`과 다른 변수들 간의 상관관계는 낮아 인구 규모가 GDP·기대수명과 직접 연관되지 않음을 보여줍니다.
+
+---
+
+## 주요 발견 요약
+
+| 구분 | 주요 내용 |
+|------|-----------|
+| 데이터 품질 | 결측치·중복 없음, 분석 즉시 활용 가능 |
+| 기대수명 | 전 대륙 꾸준한 증가, Africa는 90년대 일시 정체 |
+| 1인당 GDP | 극단적 우편향 분포, 로그 스케일 권장 |
+| GDP-기대수명 | 강한 양의 상관관계, 로그 선형 패턴 |
+| 대륙 격차 | Europe·Oceania 高, Africa 低 — 격차 뚜렷 |
+| 인구 | 중국·인도 집중, 전체 평균에 큰 영향 |

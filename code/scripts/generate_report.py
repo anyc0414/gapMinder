@@ -1,9 +1,9 @@
 import pandas as pd
 import os
 
-RAW_PATH = os.path.join(os.path.dirname(__file__), "..", "gapminder.csv")
-CLEAN_PATH = os.path.join(os.path.dirname(__file__), "..", "gapminder_clean.csv")
-OUT_PATH = os.path.join(os.path.dirname(__file__), "..", "cleaning_report.md")
+RAW_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gapminder.csv")
+CLEAN_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gapminder_clean.csv")
+OUT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "cleaning_report.md")
 
 
 def generate_report(raw: pd.DataFrame, clean: pd.DataFrame) -> str:

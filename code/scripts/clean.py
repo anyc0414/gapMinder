@@ -1,8 +1,8 @@
 import pandas as pd
 import os
 
-RAW_PATH = os.path.join(os.path.dirname(__file__), "..", "gapminder.csv")
-OUT_PATH = os.path.join(os.path.dirname(__file__), "..", "gapminder_clean.csv")
+RAW_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gapminder.csv")
+OUT_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "gapminder_clean.csv")
 
 
 def load(path: str) -> pd.DataFrame:
