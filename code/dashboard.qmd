@@ -1,13 +1,13 @@
 ---
-title: "Gapminder 대시보드"
-author: "세종대학교"
+title: "🌍 World Development Explorer"
+subtitle: "Gapminder 데이터로 보는 인류의 발전 (1952–2007)"
 format:
   dashboard:
     theme: cosmo
     embed-resources: true
     nav-buttons:
       - icon: github
-        href: https://www.gapminder.org
+        href: https://github.com/anyc0414/gapMinder
 execute:
   echo: false
   warning: false
@@ -16,243 +16,278 @@ jupyter: python3
 
 ```{python}
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 df = pd.read_csv("../data/gapminder_clean.csv")
 df_2007 = df[df["year"] == 2007].copy()
+df_1952 = df[df["year"] == 1952].copy()
 
-PALETTE = px.colors.qualitative.Set2
+CONTINENT_COLORS = {
+    "Africa":   "#E63946",
+    "Americas": "#F4A261",
+    "Asia":     "#2A9D8F",
+    "Europe":   "#457B9D",
+    "Oceania":  "#9B5DE5",
+}
+TEMPLATE = "plotly_white"
 ```
 
-# 개요 {icon="house"}
+# 📊 Overview {orientation="columns"}
 
-## Row {height=20%}
+## Column {width=25%}
 
 ```{python}
 #| content: valuebox
-#| title: "총 국가 수"
-#| icon: globe
-#| color: primary
+#| title: "분석 국가"
+#| icon: globe2
+#| color: "#457B9D"
 dict(value=f"{df['country'].nunique()}개국")
 ```
 
 ```{python}
 #| content: valuebox
 #| title: "분석 기간"
-#| icon: calendar
-#| color: info
-dict(value="1952 ~ 2007")
+#| icon: calendar3
+#| color: "#2A9D8F"
+dict(value="1952 – 2007")
 ```
 
 ```{python}
 #| content: valuebox
-#| title: "평균 기대수명 (2007)"
+#| title: "기대수명 증가"
 #| icon: heart-pulse
-#| color: success
-mean_life = round(df_2007["lifeexp"].mean(), 1)
-dict(value=f"{mean_life}세")
+#| color: "#E63946"
+gain = round(df_2007["lifeexp"].mean() - df_1952["lifeexp"].mean(), 1)
+dict(value=f"+{gain}세")
 ```
 
 ```{python}
 #| content: valuebox
-#| title: "평균 1인당 GDP (2007)"
-#| icon: currency-dollar
-#| color: warning
-mean_gdp = int(df_2007["gdppercap"].mean())
-dict(value=f"${mean_gdp:,}")
+#| title: "GDP 성장배율"
+#| icon: graph-up-arrow
+#| color: "#F4A261"
+ratio = round(df_2007["gdppercap"].mean() / df_1952["gdppercap"].mean(), 1)
+dict(value=f"{ratio}×")
 ```
 
-## Row {height=80%}
+```{python}
+#| content: valuebox
+#| title: "세계 인구 (2007)"
+#| icon: people-fill
+#| color: "#9B5DE5"
+pop = df_2007["pop"].sum()
+dict(value=f"{pop/1e9:.1f}B")
+```
+
+## Column {width=75%}
 
 ```{python}
-#| title: "1인당 GDP vs 기대수명 (2007년, 원 크기=인구)"
+#| title: "💡 Hans Rosling 버블차트 — GDP와 기대수명의 55년 변화 (▶ 재생 버튼을 눌러보세요)"
+#| padding: 0
 
 fig = px.scatter(
-    df_2007,
-    x="gdppercap", y="lifeexp",
-    size="pop", color="continent",
+    df,
+    x="gdppercap",
+    y="lifeexp",
+    animation_frame="year",
+    animation_group="country",
+    size="pop",
+    color="continent",
     hover_name="country",
-    hover_data={"pop": ":,", "gdppercap": ":.0f", "lifeexp": ":.1f"},
+    hover_data={"gdppercap":":,.0f","lifeexp":":.1f","pop":":,","year":True,"continent":False},
     log_x=True,
-    color_discrete_sequence=PALETTE,
-    labels={
-        "gdppercap": "1인당 GDP (달러, 로그)",
-        "lifeexp": "기대수명 (세)",
-        "continent": "대륙",
-        "pop": "인구"
-    },
-    size_max=60,
+    size_max=55,
+    range_x=[200, 120000],
+    range_y=[20, 90],
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"gdppercap":"1인당 GDP (달러, 로그 스케일)","lifeexp":"기대수명 (세)","continent":"대륙","pop":"인구","year":"연도"},
+    template=TEMPLATE,
 )
-fig.update_layout(margin=dict(t=30, b=20), legend=dict(orientation="h", y=-0.15))
+fig.update_layout(
+    height=480,
+    margin=dict(l=20,r=20,t=10,b=10),
+    legend=dict(orientation="v",x=0.01,y=0.99,bgcolor="rgba(255,255,255,0.8)",bordercolor="#ddd",borderwidth=1),
+    font=dict(family="sans-serif"),
+    xaxis=dict(showgrid=True,gridcolor="#f0f0f0"),
+    yaxis=dict(showgrid=True,gridcolor="#f0f0f0"),
+)
+fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 700
+fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 300
+fig.show()
+```
+
+# 📈 시계열 분석 {orientation="rows"}
+
+## Row {height=50%}
+
+```{python}
+#| title: "대륙별 기대수명 변화 — Africa의 1990년대 정체에 주목"
+
+trend = df.groupby(["year","continent"])["lifeexp"].mean().reset_index()
+fig = px.line(trend,x="year",y="lifeexp",color="continent",markers=True,
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"year":"연도","lifeexp":"평균 기대수명 (세)","continent":"대륙"},template=TEMPLATE)
+fig.add_vrect(x0=1987,x1=2002,fillcolor="#E63946",opacity=0.06,layer="below",line_width=0)
+fig.add_annotation(x=1994,y=52,text="🔴 HIV/AIDS<br>확산기",showarrow=False,
+    font=dict(size=11,color="#E63946"),bgcolor="rgba(255,255,255,0.7)")
+fig.update_layout(height=280,margin=dict(l=10,r=10,t=10,b=10),
+    legend=dict(orientation="h",y=-0.3),xaxis=dict(tickvals=df["year"].unique()),hovermode="x unified")
 fig.show()
 ```
 
 ```{python}
-#| title: "대륙별 기대수명 분포 (전체 기간)"
+#| title: "대륙별 1인당 GDP 변화 — Asia의 급성장"
 
-fig = px.box(
-    df,
-    x="continent", y="lifeexp",
-    color="continent",
-    color_discrete_sequence=PALETTE,
-    labels={"continent": "대륙", "lifeexp": "기대수명 (세)"},
-    points="outliers",
-)
-fig.update_layout(margin=dict(t=30, b=20), showlegend=False)
+trend_gdp = df.groupby(["year","continent"])["gdppercap"].mean().reset_index()
+fig = px.line(trend_gdp,x="year",y="gdppercap",color="continent",markers=True,
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"year":"연도","gdppercap":"평균 1인당 GDP ($)","continent":"대륙"},template=TEMPLATE)
+fig.update_layout(height=280,margin=dict(l=10,r=10,t=10,b=10),
+    legend=dict(orientation="h",y=-0.3),xaxis=dict(tickvals=df["year"].unique()),hovermode="x unified")
 fig.show()
 ```
 
-# 시계열 {icon="graph-up"}
-
-## Row
+## Row {height=50%}
 
 ```{python}
-#| title: "대륙별 평균 기대수명 변화 (1952~2007)"
+#| title: "연대별 대륙별 평균 기대수명"
 
-trend = df.groupby(["year", "continent"])["lifeexp"].mean().reset_index()
-
-fig = px.line(
-    trend,
-    x="year", y="lifeexp",
-    color="continent",
-    markers=True,
-    color_discrete_sequence=PALETTE,
-    labels={"year": "연도", "lifeexp": "평균 기대수명 (세)", "continent": "대륙"},
-)
-fig.update_layout(margin=dict(t=30, b=20), legend=dict(orientation="h", y=-0.2))
+decade = df.copy()
+decade["decade"] = (decade["year"] // 10 * 10).astype(str) + "s"
+decade_avg = decade.groupby(["decade","continent"])["lifeexp"].mean().reset_index()
+fig = px.bar(decade_avg,x="decade",y="lifeexp",color="continent",barmode="group",
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"decade":"연대","lifeexp":"평균 기대수명 (세)","continent":"대륙"},template=TEMPLATE)
+fig.update_layout(height=250,margin=dict(l=10,r=10,t=10,b=10),legend=dict(orientation="h",y=-0.35))
 fig.show()
 ```
 
 ```{python}
-#| title: "대륙별 평균 1인당 GDP 변화 (1952~2007)"
+#| title: "기대수명 향상 Top 10 국가 (1952→2007)"
 
-trend_gdp = df.groupby(["year", "continent"])["gdppercap"].mean().reset_index()
-
-fig = px.line(
-    trend_gdp,
-    x="year", y="gdppercap",
-    color="continent",
-    markers=True,
-    color_discrete_sequence=PALETTE,
-    labels={"year": "연도", "gdppercap": "평균 1인당 GDP (달러)", "continent": "대륙"},
-)
-fig.update_layout(margin=dict(t=30, b=20), legend=dict(orientation="h", y=-0.2))
+gain_pivot = df[df["year"].isin([1952,2007])].pivot_table(
+    index=["country","continent"],columns="year",values="lifeexp").reset_index()
+gain_pivot.columns = ["country","continent","life_1952","life_2007"]
+gain_pivot["gain"] = gain_pivot["life_2007"] - gain_pivot["life_1952"]
+top10 = gain_pivot.nlargest(10,"gain").sort_values("gain")
+fig = px.bar(top10,x="gain",y="country",color="continent",orientation="h",text="gain",
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"gain":"기대수명 증가 (세)","country":"","continent":"대륙"},template=TEMPLATE)
+fig.update_traces(texttemplate="+%{text:.1f}세",textposition="outside")
+fig.update_layout(height=250,margin=dict(l=10,r=60,t=10,b=10),showlegend=False)
 fig.show()
 ```
 
-# 분포 {icon="bar-chart"}
+# 🌐 대륙 비교 {orientation="columns"}
 
-## Row
-
-```{python}
-#| title: "기대수명 분포 (대륙별 히스토그램)"
-
-fig = px.histogram(
-    df,
-    x="lifeexp",
-    color="continent",
-    nbins=40,
-    barmode="overlay",
-    opacity=0.7,
-    color_discrete_sequence=PALETTE,
-    labels={"lifeexp": "기대수명 (세)", "continent": "대륙"},
-)
-fig.update_layout(margin=dict(t=30, b=20), legend=dict(orientation="h", y=-0.2))
-fig.show()
-```
+## Column {width=40%}
 
 ```{python}
-#| title: "1인당 GDP 분포 (로그 스케일)"
-
-import numpy as np
-
-df_plot = df.copy()
-df_plot["log_gdp"] = np.log10(df_plot["gdppercap"])
-
-fig = px.histogram(
-    df_plot,
-    x="log_gdp",
-    color="continent",
-    nbins=40,
-    barmode="overlay",
-    opacity=0.7,
-    color_discrete_sequence=PALETTE,
-    labels={"log_gdp": "log₁₀(1인당 GDP)", "continent": "대륙"},
-)
-fig.update_layout(margin=dict(t=30, b=20), legend=dict(orientation="h", y=-0.2))
-fig.show()
-```
-
-# 국가 비교 {icon="table"}
-
-## Row {height=35%}
-
-```{python}
-#| title: "대륙별 주요 지표 요약 (2007년)"
+#| title: "2007년 대륙별 핵심 지표"
 
 summary = df_2007.groupby("continent").agg(
-    국가수=("country", "nunique"),
-    평균_기대수명=("lifeexp", lambda x: round(x.mean(), 1)),
-    평균_GDP=("gdppercap", lambda x: int(x.mean())),
-    총_인구=("pop", lambda x: int(x.sum()))
+    국가수=("country","nunique"),
+    기대수명=("lifeexp",lambda x: round(x.mean(),1)),
+    일인당GDP=("gdppercap",lambda x: int(x.mean())),
+    총인구=("pop",lambda x: f"{x.sum()/1e9:.2f}B"),
 ).reset_index()
-summary.columns = ["대륙", "국가 수", "평균 기대수명 (세)", "평균 1인당 GDP ($)", "총 인구"]
-
 fig = go.Figure(data=[go.Table(
-    header=dict(
-        values=list(summary.columns),
-        fill_color="#4C72B0",
-        font=dict(color="white", size=13),
-        align="center",
-    ),
-    cells=dict(
-        values=[summary[c] for c in summary.columns],
-        fill_color=[["#f5f7fa", "#edf0f5"] * 10],
-        align="center",
-        font=dict(size=12),
-        format=["", "", "", ",.0f", ",.0f"]
-    )
+    columnwidth=[120,60,80,100,80],
+    header=dict(values=["대륙","국가 수","기대수명(세)","1인당 GDP($)","총 인구"],
+        fill_color="#457B9D",font=dict(color="white",size=12),align="center",height=36),
+    cells=dict(values=[summary["continent"],summary["국가수"],summary["기대수명"],
+        summary["일인당GDP"].map("{:,}".format),summary["총인구"]],
+        fill_color=[["#f7f9fb","#edf2f7"]*5],align="center",font=dict(size=12),height=32)
 )])
-fig.update_layout(margin=dict(t=10, b=10))
-fig.show()
-```
-
-## Row {height=65%}
-
-```{python}
-#| title: "기대수명 상위 10개국 (2007년)"
-
-top10 = df_2007.nlargest(10, "lifeexp")[["country", "continent", "lifeexp", "gdppercap"]]
-fig = px.bar(
-    top10.sort_values("lifeexp"),
-    x="lifeexp", y="country",
-    color="continent",
-    orientation="h",
-    color_discrete_sequence=PALETTE,
-    labels={"lifeexp": "기대수명 (세)", "country": "국가", "continent": "대륙"},
-    text="lifeexp",
-)
-fig.update_traces(texttemplate="%{text:.1f}세", textposition="outside")
-fig.update_layout(margin=dict(t=30, b=20), showlegend=True)
+fig.update_layout(margin=dict(t=5,b=5,l=5,r=5),height=240)
 fig.show()
 ```
 
 ```{python}
-#| title: "1인당 GDP 상위 10개국 (2007년)"
+#| title: "대륙별 기대수명 분포 (바이올린 차트)"
 
-top10_gdp = df_2007.nlargest(10, "gdppercap")[["country", "continent", "gdppercap", "lifeexp"]]
-fig = px.bar(
-    top10_gdp.sort_values("gdppercap"),
-    x="gdppercap", y="country",
-    color="continent",
-    orientation="h",
-    color_discrete_sequence=PALETTE,
-    labels={"gdppercap": "1인당 GDP (달러)", "country": "국가", "continent": "대륙"},
-    text="gdppercap",
-)
-fig.update_traces(texttemplate="$%{text:,.0f}", textposition="outside")
-fig.update_layout(margin=dict(t=30, b=20))
+fig = px.violin(df,x="continent",y="lifeexp",color="continent",box=True,points=False,
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"continent":"대륙","lifeexp":"기대수명 (세)"},template=TEMPLATE)
+fig.update_layout(height=280,margin=dict(l=10,r=10,t=10,b=10),showlegend=False)
+fig.show()
+```
+
+## Column {width=60%}
+
+```{python}
+#| title: "소득 분위별 기대수명 분포 — 부유할수록 오래 산다"
+
+df_2007c = df_2007.copy()
+df_2007c["gdp_group"] = pd.qcut(df_2007c["gdppercap"],q=4,
+    labels=["하위 25% (저소득)","중하위 25%","중상위 25%","상위 25% (고소득)"])
+fig = px.strip(df_2007c,x="gdp_group",y="lifeexp",color="continent",hover_name="country",
+    color_discrete_map=CONTINENT_COLORS,stripmode="overlay",
+    labels={"gdp_group":"소득 분위","lifeexp":"기대수명 (세)","continent":"대륙"},template=TEMPLATE)
+fig.update_traces(marker=dict(size=7,opacity=0.75))
+fig.update_layout(height=310,margin=dict(l=10,r=10,t=10,b=10),legend=dict(orientation="h",y=-0.2))
+fig.show()
+```
+
+```{python}
+#| title: "변수 간 상관관계"
+
+corr = df[["lifeexp","pop","gdppercap","year"]].corr().round(2)
+labels = ["기대수명","인구","1인당 GDP","연도"]
+fig = go.Figure(go.Heatmap(z=corr.values,x=labels,y=labels,colorscale="RdBu",zmid=0,
+    text=corr.values,texttemplate="%{text}",textfont=dict(size=13),hoverongaps=False))
+fig.update_layout(height=295,margin=dict(l=10,r=10,t=10,b=10),template=TEMPLATE)
+fig.show()
+```
+
+# 🏆 국가 순위 {orientation="rows"}
+
+## Row {height=55%}
+
+```{python}
+#| title: "2007년 기대수명 Top 15 vs Bottom 15"
+
+top15 = df_2007.nlargest(15,"lifeexp")[["country","continent","lifeexp"]].copy()
+top15["rank_type"] = "상위 15"
+bot15 = df_2007.nsmallest(15,"lifeexp")[["country","continent","lifeexp"]].copy()
+bot15["rank_type"] = "하위 15"
+rank_df = pd.concat([top15,bot15])
+fig = px.bar(rank_df.sort_values("lifeexp"),x="lifeexp",y="country",color="rank_type",
+    orientation="h",text="lifeexp",
+    color_discrete_map={"상위 15":"#2A9D8F","하위 15":"#E63946"},
+    facet_col="rank_type",
+    labels={"lifeexp":"기대수명 (세)","country":"","rank_type":""},template=TEMPLATE)
+fig.update_traces(texttemplate="%{text:.1f}세",textposition="outside")
+fig.update_layout(height=420,margin=dict(l=10,r=50,t=30,b=10),showlegend=False)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+fig.show()
+```
+
+## Row {height=45%}
+
+```{python}
+#| title: "1인당 GDP Top 10 (2007년)"
+
+top10_gdp = df_2007.nlargest(10,"gdppercap").sort_values("gdppercap")
+fig = px.bar(top10_gdp,x="gdppercap",y="country",color="continent",orientation="h",text="gdppercap",
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"gdppercap":"1인당 GDP ($)","country":"","continent":"대륙"},template=TEMPLATE)
+fig.update_traces(texttemplate="$%{text:,.0f}",textposition="outside")
+fig.update_layout(height=310,margin=dict(l=10,r=80,t=10,b=10),legend=dict(orientation="h",y=-0.25))
+fig.show()
+```
+
+```{python}
+#| title: "인구 Top 10 (2007년)"
+
+top10_pop = df_2007.nlargest(10,"pop").sort_values("pop")
+fig = px.bar(top10_pop,x="pop",y="country",color="continent",orientation="h",text="pop",
+    color_discrete_map=CONTINENT_COLORS,
+    labels={"pop":"인구","country":"","continent":"대륙"},template=TEMPLATE)
+fig.update_traces(texttemplate="%{text:,.0f}",textposition="outside")
+fig.update_layout(height=310,margin=dict(l=10,r=110,t=10,b=10),showlegend=False)
 fig.show()
 ```
